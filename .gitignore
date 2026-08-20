@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Runtime state and telemetry (keep directory sentinels)
+.env
+*.log
+*.jsonl
+!tests/fixtures/*.jsonl
+data/input/*
+!data/input/.gitkeep
+data/output/*
+!data/output/.gitkeep
+state/
+
+# OpenSearch / containers
+opensearch-data/
+*.pcap
+*.pcapng
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store

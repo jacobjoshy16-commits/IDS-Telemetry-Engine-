@@ -1,0 +1,10 @@
+{
+  "alerts_generated": 5248,
+  "elapsed_seconds": 11.981142,
+  "events": 100000,
+  "events_per_second": 8346.45,
+  "platform": "Linux-6.1.158+-x86_64-with-glibc2.36",
+  "python": "3.11.2",
+  "scope": "Suricata/Zeek-style JSON decode, strict Pydantic normalization, and beacon window update; excludes network and OpenSearch I/O",
+  "warmup_events": 5000
+}

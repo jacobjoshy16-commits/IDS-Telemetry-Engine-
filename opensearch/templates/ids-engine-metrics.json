@@ -1,0 +1,30 @@
+{
+  "index_patterns": ["ids-engine-metrics-*"] ,
+  "priority": 200,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0
+    },
+    "mappings": {
+      "dynamic": "strict",
+      "properties": {
+        "schema_version": {"type": "keyword"},
+        "event_id": {"type": "keyword"},
+        "kind": {"type": "keyword"},
+        "observed_at": {"type": "date"},
+        "ingested_at": {"type": "date"},
+        "sensor": {
+          "properties": {
+            "product": {"type": "keyword"},
+            "sensor_id": {"type": "keyword"},
+            "interface": {"type": "keyword"}
+          }
+        },
+        "interval_seconds": {"type": "float"},
+        "counters": {"type": "object", "dynamic": true},
+        "gauges": {"type": "object", "dynamic": true}
+      }
+    }
+  }
+}

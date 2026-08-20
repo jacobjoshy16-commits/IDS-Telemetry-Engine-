@@ -1,0 +1,66 @@
+{
+  "index_patterns": ["ids-telemetry-events-*"] ,
+  "priority": 200,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0,
+      "index.refresh_interval": "5s"
+    },
+    "mappings": {
+      "dynamic": "strict",
+      "properties": {
+        "schema_version": {"type": "keyword"},
+        "event_id": {"type": "keyword"},
+        "kind": {"type": "keyword"},
+        "observed_at": {"type": "date"},
+        "ingested_at": {"type": "date"},
+        "sensor": {
+          "properties": {
+            "product": {"type": "keyword"},
+            "sensor_id": {"type": "keyword"},
+            "interface": {"type": "keyword"}
+          }
+        },
+        "src_ip": {"type": "ip"},
+        "src_port": {"type": "integer"},
+        "dst_ip": {"type": "ip"},
+        "dst_port": {"type": "integer"},
+        "transport": {"type": "keyword"},
+        "community_id": {"type": "keyword"},
+        "flow_id": {"type": "keyword"},
+        "app_protocol": {"type": "keyword"},
+        "action": {"type": "keyword"},
+        "signature_id": {"type": "long"},
+        "signature_revision": {"type": "integer"},
+        "signature": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 1024}}},
+        "category": {"type": "keyword"},
+        "severity": {"type": "integer"},
+        "metadata": {"type": "object", "enabled": false},
+        "uid": {"type": "keyword"},
+        "service": {"type": "keyword"},
+        "duration_seconds": {"type": "double"},
+        "orig_bytes": {"type": "long"},
+        "resp_bytes": {"type": "long"},
+        "orig_packets": {"type": "long"},
+        "resp_packets": {"type": "long"},
+        "conn_state": {"type": "keyword"},
+        "history": {"type": "keyword"},
+        "missed_bytes": {"type": "long"},
+        "query": {"type": "keyword", "ignore_above": 1024},
+        "qtype": {"type": "keyword"},
+        "rcode": {"type": "keyword"},
+        "answers": {"type": "keyword", "ignore_above": 1024},
+        "rejected": {"type": "boolean"},
+        "trans_id": {"type": "integer"},
+        "host_name": {"type": "keyword"},
+        "host_ip": {"type": "ip"},
+        "source_ip": {"type": "ip"},
+        "principal": {"type": "keyword", "ignore_above": 1024},
+        "outcome": {"type": "keyword"},
+        "provider": {"type": "keyword"},
+        "logon_type": {"type": "keyword"}
+      }
+    }
+  }
+}
