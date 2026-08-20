@@ -1,0 +1,81 @@
+{
+  "index_patterns": ["ids-correlation-alerts-*"] ,
+  "priority": 210,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0,
+      "index.refresh_interval": "2s"
+    },
+    "mappings": {
+      "dynamic": "strict",
+      "properties": {
+        "schema_version": {"type": "keyword"},
+        "event_id": {"type": "keyword"},
+        "kind": {"type": "keyword"},
+        "observed_at": {"type": "date"},
+        "ingested_at": {"type": "date"},
+        "sensor": {
+          "properties": {
+            "product": {"type": "keyword"},
+            "sensor_id": {"type": "keyword"},
+            "interface": {"type": "keyword"}
+          }
+        },
+        "detection_type": {"type": "keyword"},
+        "title": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 512}}},
+        "description": {"type": "text"},
+        "severity": {"type": "keyword"},
+        "confidence": {"type": "float"},
+        "first_seen": {"type": "date"},
+        "last_seen": {"type": "date"},
+        "src_ip": {"type": "ip"},
+        "dst_ip": {"type": "ip"},
+        "dst_port": {"type": "integer"},
+        "transport": {"type": "keyword"},
+        "event_ids": {"type": "keyword"},
+        "evidence": {"type": "object", "dynamic": true},
+        "suricata_matches": {
+          "type": "nested",
+          "properties": {
+            "event_id": {"type": "keyword"},
+            "signature_id": {"type": "long"},
+            "signature": {"type": "keyword", "ignore_above": 1024},
+            "category": {"type": "keyword"},
+            "observed_at": {"type": "date"}
+          }
+        },
+        "authentication_matches": {
+          "type": "nested",
+          "properties": {
+            "event_id": {"type": "keyword"},
+            "observed_at": {"type": "date"},
+            "host_name": {"type": "keyword"},
+            "principal": {"type": "keyword"},
+            "outcome": {"type": "keyword"},
+            "action": {"type": "keyword"},
+            "provider": {"type": "keyword"}
+          }
+        },
+        "mitre_attack": {
+          "type": "nested",
+          "properties": {
+            "technique_id": {"type": "keyword"},
+            "name": {"type": "keyword"},
+            "tactic": {"type": "keyword"},
+            "url": {"type": "keyword", "index": false}
+          }
+        },
+        "nist_controls": {
+          "type": "nested",
+          "properties": {
+            "control_id": {"type": "keyword"},
+            "name": {"type": "keyword"},
+            "rationale": {"type": "text"}
+          }
+        },
+        "tags": {"type": "keyword"}
+      }
+    }
+  }
+}

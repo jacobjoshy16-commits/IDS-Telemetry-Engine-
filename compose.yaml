@@ -1,0 +1,202 @@
+name: ids-telemetry
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
+services:
+  opensearch:
+    image: opensearchproject/opensearch:2.19.1
+    environment:
+      discovery.type: single-node
+      bootstrap.memory_lock: "true"
+      plugins.security.disabled: "true"
+      OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    ports:
+      - "127.0.0.1:${OPENSEARCH_PORT:-9200}:9200"
+    networks: [telemetry]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    logging: *default-logging
+
+  opensearch-init:
+    image: curlimages/curl:8.12.1
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    volumes:
+      - ./opensearch/templates:/templates:ro
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        for template in /templates/*.json; do
+          name="$$(basename "$$template" .json)"
+          echo "Installing index template $$name"
+          curl -fsS -X PUT "http://opensearch:9200/_index_template/$$name" \
+            -H 'Content-Type: application/json' --data-binary "@$$template"
+        done
+    networks: [telemetry]
+    restart: "no"
+    logging: *default-logging
+
+  dashboards:
+    image: opensearchproject/opensearch-dashboards:2.19.1
+    environment:
+      OPENSEARCH_HOSTS: '["http://opensearch:9200"]'
+      DISABLE_SECURITY_DASHBOARDS_PLUGIN: "true"
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${DASHBOARDS_PORT:-5601}:5601"
+    networks: [telemetry]
+    logging: *default-logging
+
+  dashboards-init:
+    image: curlimages/curl:8.12.1
+    depends_on:
+      dashboards:
+        condition: service_started
+    volumes:
+      - ./opensearch/dashboards:/dashboards:ro
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        until curl -fsS http://dashboards:5601/api/status >/dev/null; do sleep 5; done
+        curl -fsS -X POST 'http://dashboards:5601/api/saved_objects/_import?overwrite=true' \
+          -H 'osd-xsrf: telemetry-bootstrap' \
+          -F file=@/dashboards/ids-telemetry.ndjson
+    networks: [telemetry]
+    restart: "no"
+    logging: *default-logging
+
+  telemetry-engine:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    user: "65532:65532"
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      IDS_SERVICE_NAME: ids-telemetry-engine
+      IDS_SENSOR_ID: correlator-compose-01
+      IDS_LOG_LEVEL: ${IDS_LOG_LEVEL:-INFO}
+      IDS_SOURCE__SURICATA_PATH: /var/log/suricata/eve.json
+      IDS_SOURCE__ZEEK_CONN_PATH: /var/log/zeek/conn.log
+      IDS_SOURCE__ZEEK_DNS_PATH: /var/log/zeek/dns.log
+      IDS_SOURCE__ENDPOINT_AUTH_PATH: /data/input/endpoint-auth.jsonl
+      IDS_SOURCE__FOLLOW: "true"
+      IDS_SOURCE__FROM_BEGINNING: "true"
+      IDS_OPENSEARCH__ENABLED: "true"
+      IDS_OPENSEARCH__HOSTS: '["http://opensearch:9200"]'
+      IDS_OPENSEARCH__VERIFY_CERTS: "false"
+      IDS_OPENSEARCH__DEAD_LETTER_PATH: /data/output/opensearch-dead-letter.jsonl
+      IDS_OUTPUT__INCLUDE_NORMALIZED_EVENTS: "false"
+      IDS_METRICS__ENABLED: "true"
+      IDS_METRICS__BIND_HOST: 0.0.0.0
+      IDS_METRICS__PORT: "9108"
+    volumes:
+      - suricata-logs:/var/log/suricata:ro
+      - zeek-logs:/var/log/zeek:ro
+      - ./data/input:/data/input:ro
+      - engine-output:/data/output
+    depends_on:
+      opensearch-init:
+        condition: service_completed_successfully
+    ports:
+      - "${METRICS_PORT:-9108}:9108"
+    networks: [telemetry]
+    restart: unless-stopped
+    logging: *default-logging
+
+  # Suricata and Zeek share this service's Linux network namespace. Start the
+  # optional live sensors with: docker compose --profile sensors up -d
+  sensor-netns:
+    image: alpine:3.21
+    command: ["/bin/sh", "-c", "trap 'exit 0' TERM INT; while :; do sleep 3600; done"]
+    cap_drop: [ALL]
+    networks: [sensor]
+    profiles: [sensors]
+    logging: *default-logging
+
+  suricata:
+    image: jasonish/suricata:7.0.15
+    network_mode: "service:sensor-netns"
+    depends_on: [sensor-netns]
+    cap_drop: [ALL]
+    cap_add: [NET_ADMIN, NET_RAW, SYS_NICE]
+    security_opt:
+      - no-new-privileges:true
+    command: ["-i", "eth0", "--set", "rule-files.0=local.rules"]
+    volumes:
+      - suricata-logs:/var/log/suricata
+      - ./suricata/rules:/var/lib/suricata/rules:ro
+    profiles: [sensors]
+    restart: unless-stopped
+    logging: *default-logging
+
+  zeek:
+    image: zeek/zeek:7.0.8
+    network_mode: "service:sensor-netns"
+    depends_on: [sensor-netns]
+    cap_drop: [ALL]
+    cap_add: [NET_ADMIN, NET_RAW]
+    security_opt:
+      - no-new-privileges:true
+    working_dir: /var/log/zeek
+    command: ["zeek", "-i", "eth0", "/opt/telemetry/local.zeek"]
+    volumes:
+      - zeek-logs:/var/log/zeek
+      - ./zeek:/opt/telemetry:ro
+    profiles: [sensors]
+    restart: unless-stopped
+    logging: *default-logging
+
+  # Place a pcap at data/input/replay.pcap, then enable both optional profiles:
+  # docker compose --profile sensors --profile replay up traffic-replay
+  traffic-replay:
+    build:
+      context: .
+      dockerfile: docker/replay.Dockerfile
+    network_mode: "service:sensor-netns"
+    depends_on: [sensor-netns, suricata, zeek]
+    cap_drop: [ALL]
+    cap_add: [NET_RAW]
+    command: ["--intf1=eth0", "--preload-pcap", "/pcaps/replay.pcap"]
+    volumes:
+      - ./data/input:/pcaps:ro
+    profiles: [replay]
+    logging: *default-logging
+
+networks:
+  telemetry:
+  sensor:
+    internal: false
+
+volumes:
+  opensearch-data:
+  engine-output:
+  suricata-logs:
+  zeek-logs:
